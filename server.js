@@ -5,12 +5,12 @@ const app = express();
 const server = require("http").createServer(app);
 const wss = new WebSocket.Server({ server });
 
-wss.on("connection", (ws) => {
+ws.on("connection", (ws) => {
   console.log("New WebSocket Connection");
 
   // Handle messages from ESP32 and forward to clients
   ws.on("message", (message) => {
-    wss.clients.forEach((client) => {
+    ws.clients.forEach((client) => {
       if (client !== ws && client.readyState === WebSocket.OPEN) {
         client.send(message);
       }
