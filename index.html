@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32-CAM WebRTC Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .video-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        #videoFeed {
+            max-width: 100%;
+            max-height: 480px;
+            border: 1px solid #ddd;
+            background-color: #000;
+        }
+        .status {
+            text-align: center;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .stats {
+            font-size: 14px;
+            color: #666;
+            text-align: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ESP32-CAM Live Feed</h1>
+        
+        <div id="connectionStatus" class="status disconnected">
+            Not connected to server
+        </div>
+        
+        <div class="video-container">
+            <img id="videoFeed" alt="Camera feed will appear here">
+        </div>
+        
+        <div class="controls">
+            <button id="connectBtn">Connect</button>
+            <button id="disconnectBtn" disabled>Disconnect</button>
+        </div>
+        
+        <div id="stats" class="stats">
+            Frames received: 0 | Last frame size: 0 KB
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        
+        // const SERVER_URL = "ws://localhost:8080";
+        
+        // For deployed server:
+        const SERVER_URL = "ws://rtspcctv-production.up.railway.app:8080";
+        
+        // Elements
+        const videoFeed = document.getElementById('videoFeed');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const statsElement = document.getElementById('stats');
+        
+        // State
+        let websocket = null;
+        let frameCount = 0;
+        let lastFrameSize = 0;
+        let isConnected = false;
+        
+        // Connect to WebSocket server
+        function connect() {
+            // Reset state if reconnecting
+            if (websocket) {
+                websocket.close();
+            }
+            
+            updateStatus("Connecting...", "disconnected");
+            
+            websocket = new WebSocket(SERVER_URL);
+            
+            websocket.onopen = () => {
+                console.log("WebSocket connection established");
+                updateStatus("Connected to server", "connected");
+                isConnected = true;
+                updateButtons();
+            };
+            
+            websocket.onclose = () => {
+                console.log("WebSocket connection closed");
+                updateStatus("Disconnected from server", "disconnected");
+                isConnected = false;
+                updateButtons();
+            };
+            
+            websocket.onerror = (error) => {
+                console.error("WebSocket error:", error);
+                updateStatus("Connection error", "disconnected");
+                isConnected = false;
+                updateButtons();
+            };
+            
+            websocket.onmessage = (event) => {
+                handleIncomingFrame(event.data);
+            };
+        }
+        
+        // Handle incoming video frame
+        function handleIncomingFrame(data) {
+            // Create a blob from the binary data
+            const blob = new Blob([data], { type: 'image/jpeg' });
+            lastFrameSize = (blob.size / 1024).toFixed(2);
+            
+            // Convert to URL and update the image
+            const url = URL.createObjectURL(blob);
+            videoFeed.src = url;
+            
+            // Clean up old URLs to prevent memory leaks
+            const oldUrl = videoFeed.dataset.oldUrl;
+            if (oldUrl) {
+                URL.revokeObjectURL(oldUrl);
+            }
+            videoFeed.dataset.oldUrl = url;
+            
+            // Update stats
+            frameCount++;
+            updateStats();
+        }
+        
+        // Disconnect from server
+        function disconnect() {
+            if (websocket) {
+                websocket.close();
+                websocket = null;
+            }
+        }
+        
+        // Update connection status display
+        function updateStatus(message, className) {
+            connectionStatus.textContent = message;
+            connectionStatus.className = "status " + className;
+        }
+        
+        // Update button states
+        function updateButtons() {
+            connectBtn.disabled = isConnected;
+            disconnectBtn.disabled = !isConnected;
+        }
+        
+        // Update statistics display
+        function updateStats() {
+            statsElement.textContent = `Frames received: ${frameCount} | Last frame size: ${lastFrameSize} KB`;
+        }
+        
+        // Event listeners
+        connectBtn.addEventListener('click', connect);
+        disconnectBtn.addEventListener('click', disconnect);
+        
+        // Try to automatically connect when the page loads
+        window.addEventListener('load', () => {
+            setTimeout(connect, 1000);
+        });
+    </script>
+</body>
+</html>
