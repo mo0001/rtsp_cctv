@@ -5,23 +5,20 @@ const app = express();
 const server = require("http").createServer(app);
 const wss = new WebSocket.Server({ server });
 
-app.use((req, res, next) => {
-  res.setHeader('Content-Security-Policy', "connect-src 'self' wss://rtspcctv-production.up.railway.app/");
-  next();
-});
-
 wss.on("connection", (ws) => {
-    console.log("New WebSocket Connection");
+  console.log("New WebSocket Connection");
 
-    ws.on("message", (message) => {
-        wss.clients.forEach((client) => {
-            if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(message);
-            }
-        });
+  // Handle messages from ESP32 and forward to clients
+  ws.on("message", (message) => {
+    wss.clients.forEach((client) => {
+      if (client !== ws && client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      }
     });
+  });
 
-    ws.on("close", () => console.log("Client Disconnected"));
+  ws.on("close", () => console.log("Client Disconnected"));
 });
 
-server.listen(8080, () => console.log("WebRTC Signaling Server Running on Port 8080"));
+server.listen(8080, () => console.log("WebSocket Server Running on Port 8080"));
+
