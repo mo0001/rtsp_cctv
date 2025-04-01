@@ -5,6 +5,11 @@ const app = express();
 const server = require("http").createServer(app);
 const wss = new WebSocket.Server({ server });
 
+app.use((req, res, next) => {
+  res.setHeader('Content-Security-Policy', "connect-src 'self' wss://rtspcctv-production.up.railway.app/");
+  next();
+});
+
 wss.on("connection", (ws) => {
     console.log("New WebSocket Connection");
 
